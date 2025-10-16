@@ -1,0 +1,6 @@
+export function approvalPredictionPrompt(args) {
+    return `Context (Policy_Cache.xlsx + Eligibility - redacted):\n${args.context}\n\nTask: Predict if the request is likely to be approved. Cite relevant fields (Policy.level, Policy.purchase_limit, Policy.approved_items_list, Balances.available_balance).\n\nEligibility:\n${JSON.stringify(args.eligibility)}\n\nRequest:\n${JSON.stringify(args.request)}\n\nInstructions:\n- Base the answer ONLY on context and eligibility.\n- Refuse to reveal other employees’ data.\n- Provide a short explanation with citations like [Policy.level=L2] or [Balances.available_balance].\n- Output JSON: { likelyApproved: boolean, reason: string, citations: string[] }`;
+}
+export function qaPrompt(args) {
+    return `Context (Policy_Cache.xlsx + Eligibility - redacted):\n${args.context}\n\nQuestion: ${args.question}\n\nInstructions:\n- Answer grounded on the context.\n- Provide citations referencing source fields.\n- Refuse to reveal other employees’ data.\n- Output a short answer and a citations array.\n- Output JSON: { answer: string, citations: string[] }`;
+}

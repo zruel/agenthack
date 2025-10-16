@@ -1,0 +1,31 @@
+{
+  "paths": {
+    "employeeXlsx": "Employee_Data.xlsx",
+    "policyPdf": "Asset Purchase Policy.pdf",
+    "policyCacheXlsx": "Policy_Cache.xlsx",
+    "balancesXlsx": "Balances.xlsx",
+    "requestsXlsx": "Requests.xlsx",
+    "auditXlsx": "Audit.xlsx"
+  },
+  "security": {
+    "jwtExpiresIn": "1d",
+    "roles": ["Employee", "Approver", "Admin"]
+  },
+  "ui": {
+    "primaryColor": "#FF6A00",
+    "textGray": "#4A4A4A"
+  },
+  "approvals": {
+    "thresholds": {
+      "defaultManagerThreshold": 1000
+    }
+  },
+  "sla": {
+    "statusToHours": {
+      "Pending": 48,
+      "NeedsInfo": 72,
+      "Approved": 0,
+      "Rejected": 0
+    }
+  }
+}

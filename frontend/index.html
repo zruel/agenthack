@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Asset Purchase Portal</title>
+  </head>
+  <body>
+    <header>
+      <h1>Asset Purchase Chat Console</h1>
+    </header>
+    <main>
+      <section id="policy-qa" class="page">
+        <h2>Chat & Actions</h2>
+        <div class="chat-layout">
+          <aside class="chat-sidebar">
+            <h3>Pre-built Questions</h3>
+            <div class="preset-list">
+              <button class="preset" data-question="What is my purchase limit?">What is my purchase limit?</button>
+              <button class="preset" data-question="Are laptops approved for my level?">Are laptops approved for my level?</button>
+              <button class="preset" data-question="How is available balance calculated?">How is available balance calculated?</button>
+              <button class="preset" data-question="What items are approved for Managers?">What items are approved for Managers?</button>
+              <button class="preset" data-question="Can I carry over unspent budget?">Can I carry over unspent budget?</button>
+            </div>
+          </aside>
+          <div class="chat-main">
+            <!-- Top bar email input removed for chat-only UI -->
+            <!-- Action Bar -->
+            <div class="action-bar">
+              <div class="actions-grid">
+                <button type="button" id="act-eligibility">Check Eligibility</button>
+                <button type="button" id="act-role">Check Role</button>
+                <form id="balance-check" class="inline-form">
+                  <button type="submit">Load Balance</button>
+                </form>
+                <form id="balance-adjust" class="inline-form">
+                  <input type="number" id="adjust-delta" placeholder="Adjust by (±)" step="0.01" required />
+                  <input type="text" id="adjust-notes" placeholder="Notes" />
+                  <button type="submit">Adjust Balance</button>
+                </form>
+                <form id="tx-quick" class="inline-form">
+                  <input type="date" id="txq-from" />
+                  <input type="date" id="txq-to" />
+                  <button type="submit">Fetch Tx</button>
+                </form>
+                <form id="request-quick" class="inline-form">
+                  <input type="text" id="rq-item" placeholder="Item" required />
+                  <input type="number" id="rq-amount" placeholder="Amount" step="0.01" required />
+                  <input type="text" id="rq-just" placeholder="Justification" required />
+                  <button type="submit">Create Request</button>
+                </form>
+                <form id="review-quick" class="inline-form">
+                  <input type="text" id="rq-id" placeholder="Request ID" />
+                  <input type="email" id="rq-approver" placeholder="Approver Email" />
+                  <button type="button" id="rq-approve">Approve</button>
+                  <button type="button" id="rq-reject">Reject</button>
+                </form>
+              </div>
+            </div>
+            <!-- Inline Predict Approval form -->
+            <form id="chat-predict" class="predict-card">
+              <h3>Predict Approval</h3>
+              <div class="fields">
+                <input type="text" id="pred-item" placeholder="Item category (e.g., Laptop)" required />
+                <input type="number" id="pred-amount" placeholder="Amount (USD)" required />
+                <textarea id="pred-justification" placeholder="Justification" required></textarea>
+                <button type="submit">Predict</button>
+              </div>
+              <pre id="pred-result" aria-live="polite"></pre>
+            </form>
+            <div id="chat-messages" class="chat-messages" aria-live="polite" aria-relevant="additions"></div>
+            <form id="chat-form" class="chat-input">
+              <input type="text" id="chat-input" placeholder="Ask a question..." required />
+              <button type="submit">Send</button>
+            </form>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+  </html>

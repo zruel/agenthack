@@ -189,12 +189,15 @@ document.addEventListener('DOMContentLoaded', () => {
     return filters;
   }
 
-  function parseInstruction(input: string): null | { type: 'reduce_limit_by' | 'increase_limit_by' | 'set_limit_to'; name?: string; email?: string; amount: number; } {
+  function parseInstruction(input: string): null | { type: 'reduce_limit_by' | 'increase_limit_by' | 'set_limit_to'; name?: string; email?: string; employeeid?: string; amount: number; } {
     const text = normalizeQuotes(input);
     const lower = text.toLowerCase();
     // Try email extraction
     const emailMatch = text.match(/([\w.+-]+@[^\s]+)/);
     const email = emailMatch?.[1];
+    // Employee ID like EMP046
+    const empIdMatch = text.match(/\bEMP\d{3,}\b/i)?.[0];
+    const employeeid = empIdMatch ? empIdMatch.toUpperCase() : undefined;
     // Name in possessive: "Amanda Tan's purchase limit"
     const namePoss = text.match(/([A-Za-z .'-]+)'s\s+purchase\s+limit/i)?.[1];
     const nameFor = text.match(/for\s+([A-Za-z .'-]+)/i)?.[1];
@@ -205,27 +208,29 @@ document.addEventListener('DOMContentLoaded', () => {
     if ((/reduce|decrease/.test(lower)) && /purchase\s+limit/.test(lower) && byAmt) {
       const amt = parseNumber(byAmt);
       if (!Number.isFinite(amt)) return null;
-      return { type: 'reduce_limit_by', name, email, amount: amt };
+      return { type: 'reduce_limit_by', name, email, employeeid, amount: amt };
     }
     if ((/increase|raise/.test(lower)) && /purchase\s+limit/.test(lower) && byAmt) {
       const amt = parseNumber(byAmt);
       if (!Number.isFinite(amt)) return null;
-      return { type: 'increase_limit_by', name, email, amount: amt };
+      return { type: 'increase_limit_by', name, email, employeeid, amount: amt };
     }
     if ((/set/.test(lower)) && /purchase\s+limit/.test(lower) && toAmt) {
       const amt = parseNumber(toAmt);
       if (!Number.isFinite(amt)) return null;
-      return { type: 'set_limit_to', name, email, amount: amt };
+      return { type: 'set_limit_to', name, email, employeeid, amount: amt };
     }
     return null;
   }
 
   // Parse available balance instructions
-  function parseBalanceInstruction(input: string): null | { type: 'reduce_balance_by' | 'increase_balance_by' | 'set_balance_to'; name?: string; email?: string; amount: number; } {
+  function parseBalanceInstruction(input: string): null | { type: 'reduce_balance_by' | 'increase_balance_by' | 'set_balance_to'; name?: string; email?: string; employeeid?: string; amount: number; } {
     const text = normalizeQuotes(input);
     const lower = text.toLowerCase();
     const emailMatch = text.match(/([\w.+-]+@[^\s]+)/);
     const email = emailMatch?.[1];
+    const empIdMatch = text.match(/\bEMP\d{3,}\b/i)?.[0];
+    const employeeid = empIdMatch ? empIdMatch.toUpperCase() : undefined;
     const namePoss = text.match(/([A-Za-z .'-]+)'s\s+available\s+balance/i)?.[1] || text.match(/([A-Za-z .'-]+)'s\s+balance/i)?.[1];
     const nameFor = text.match(/for\s+([A-Za-z .'-]+)/i)?.[1];
     const name = (namePoss || nameFor || '').trim() || undefined;
@@ -237,30 +242,36 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mentionBalance && (/reduce|decrease/.test(lower)) && byAmt) {
       const amt = parseNumber(byAmt);
       if (!Number.isFinite(amt)) return null;
-      return { type: 'reduce_balance_by', name, email, amount: amt };
+      return { type: 'reduce_balance_by', name, email, employeeid, amount: amt };
     }
     if (mentionBalance && (/increase|raise/.test(lower)) && byAmt) {
       const amt = parseNumber(byAmt);
       if (!Number.isFinite(amt)) return null;
-      return { type: 'increase_balance_by', name, email, amount: amt };
+      return { type: 'increase_balance_by', name, email, employeeid, amount: amt };
     }
     if (mentionBalance && (/set|update/.test(lower)) && toAmt) {
       const amt = parseNumber(toAmt);
       if (!Number.isFinite(amt)) return null;
-      return { type: 'set_balance_to', name, email, amount: amt };
+      return { type: 'set_balance_to', name, email, employeeid, amount: amt };
     }
     // Special: "update balance with plus 100" (no explicit reduce/increase word)
     if (mentionBalance && /update/.test(lower) && byAmt) {
       const amt = parseNumber(byAmt);
       if (!Number.isFinite(amt)) return null;
       // Assume plus is increase, minus is reduce
-      if (/minus/i.test(text)) return { type: 'reduce_balance_by', name, email, amount: amt };
-      return { type: 'increase_balance_by', name, email, amount: amt };
+      if (/minus/i.test(text)) return { type: 'reduce_balance_by', name, email, employeeid, amount: amt };
+      return { type: 'increase_balance_by', name, email, employeeid, amount: amt };
     }
     return null;
   }
 
-  async function resolveEmployee(name?: string, email?: string) {
+  async function resolveEmployee(name?: string, email?: string, employeeid?: string) {
+    // 1) Direct lookup by employee ID
+    if (employeeid) {
+      const rows = await searchEmployees({ employeeid });
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      if (row && row.employeeid) return row;
+    }
     if (email) {
       const rows = await searchEmployees({ emailid: email });
       const row = Array.isArray(rows) ? rows[0] : rows;
@@ -273,11 +284,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const base = list.find(r => typeof r.emailid === 'string' && !r.emailid.includes('+')) || list[0];
       return base;
     }
+    // 2) Fallback to current chat context email
+    if (chatEmail) {
+      try {
+        const rows = await searchEmployees({ emailid: chatEmail });
+        const row = Array.isArray(rows) ? rows[0] : rows;
+        if (row && row.employeeid) return row;
+      } catch {}
+    }
     return null;
   }
 
   async function startConfirmationFlow(instr: NonNullable<ReturnType<typeof parseInstruction>>) {
-    const emp = await resolveEmployee(instr.name, instr.email);
+    const emp = await resolveEmployee(instr.name, instr.email, instr.employeeid);
     if (!emp || !emp.employeeid) {
       appendMessage('assistant', 'Employee not found. Provide a valid name or email.');
       return;
@@ -307,7 +326,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function startBalanceConfirmationFlow(instr: NonNullable<ReturnType<typeof parseBalanceInstruction>>) {
-    const emp = await resolveEmployee(instr.name, instr.email);
+    const emp = await resolveEmployee(instr.name, instr.email, instr.employeeid);
     if (!emp || !emp.employeeid) {
       appendMessage('assistant', 'Employee not found. Provide a valid name or email.');
       return;

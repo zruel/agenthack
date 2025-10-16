@@ -77,7 +77,8 @@ router.get('/employees/count', async (req, res, next) => {
     }
     if (level) list = list.filter(r => String(r.employeelevel || '').toLowerCase() === level.toLowerCase());
     if (department) list = list.filter(r => String(r.department || '').toLowerCase() === department.toLowerCase());
-    if (designation) list = list.filter(r => String(r.designation || '').toLowerCase().includes(designation.toLowerCase()));
+    // Designation may be absent in CSV; use a loose access
+    if (designation) list = list.filter(r => String((r as any).designation || '').toLowerCase().includes(designation.toLowerCase()));
     res.json({ count: list.length, criteria: { level, department, designation } });
   } catch (e) { next(e); }
 });
@@ -252,15 +253,43 @@ router.post('/balances/adjust', async (req, res, next) => {
     const txRows = balancesStore.readRows<any>(workbook, 'Transactions');
     let bal = balRows.find(b => String(b.employeeid) === String(employeeid));
     if (!bal) {
-      bal = { employeeid, employeelevel: '', ytd_spend: 0, ytd_limit: 0, available_balance: 0, last_update: new Date().toISOString(), carryover_policy_flag: 'reset' };
+      // Seed from CSV or Employee workbook if available
+      let seedLimit = 0;
+      let seedSpend = 0;
+      let seedAvail = 0;
+      try {
+        const csv = readEmployeesCsv().find(e => String(e.employeeid) === String(employeeid));
+        if (csv) {
+          seedLimit = Number(csv.purchase_limit || 0);
+          seedSpend = Number(csv.ytd_spend || 0);
+          seedAvail = csv.available_balance !== undefined ? Number(csv.available_balance) : Math.max(0, seedLimit - seedSpend);
+        } else {
+          const { workbook: empWb } = await employeeStore.read();
+          const empRows = employeeStore.readRows<any>(empWb, 'Employees');
+          const emp = empRows.find(e => String(e.employeeid) === String(employeeid));
+          if (emp) {
+            seedLimit = Number(emp.purchase_limit || 0);
+            seedSpend = Number(emp.ytd_spend || 0);
+            seedAvail = Number(emp.available_balance || Math.max(0, seedLimit - seedSpend));
+          }
+        }
+      } catch {}
+      bal = { employeeid, employeelevel: '', ytd_spend: seedSpend, ytd_limit: seedLimit, available_balance: seedAvail, last_update: new Date().toISOString(), carryover_policy_flag: 'reset' };
       balRows.push(bal);
     }
     const currentSpend = Number(bal.ytd_spend || 0);
     const limit = Number(bal.ytd_limit || 0);
-    let newSpend = currentSpend + Number(delta);
-    if (newSpend < 0) newSpend = 0;
-    // If limit is unknown (0), keep available as 0; otherwise recompute
-    const newAvail = limit > 0 ? Math.max(0, limit - newSpend) : 0;
+    const currentAvail = limit > 0 ? Math.max(0, limit - currentSpend) : Number(bal.available_balance || 0);
+    // Treat delta as change in available balance: increase decreases spend, decrease increases spend
+    let newAvail = Number(currentAvail) + Number(delta);
+    if (newAvail < 0) newAvail = 0;
+    let newSpend: number;
+    if (limit > 0) {
+      newSpend = Math.max(0, limit - newAvail);
+    } else {
+      // Without a known limit, approximate spend change inversely
+      newSpend = Math.max(0, currentSpend - Number(delta));
+    }
     bal.ytd_spend = newSpend;
     bal.available_balance = newAvail;
     bal.last_update = new Date().toISOString();
